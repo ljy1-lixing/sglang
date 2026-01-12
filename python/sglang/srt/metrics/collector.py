@@ -1134,7 +1134,7 @@ class TokenizerMetricsCollector:
                 ),
             )
 
-        self.cached_tokens_total = Counter(
+        self.cached_tokens_total = Gauge(
             name="sglang:cached_tokens_total",
             documentation="Number of cached prompt tokens.",
             labelnames=labels.keys(),

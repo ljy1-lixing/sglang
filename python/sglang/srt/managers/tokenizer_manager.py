@@ -472,6 +472,13 @@ class TokenizerManager(TokenizerCommunicatorMixin, TokenizerManagerMultiItemMixi
         self.sampling_params_class = SamplingParams
         self.signal_handler_class = SignalHandler
 
+    async def flush_cache(self):
+        """Flush the radix cache and clear metrics."""
+        if self.enable_metrics and self.metrics_collector:
+            self.metrics_collector.clear_metrics()
+        
+        return await super().flush_cache()
+
     async def generate_request(
         self,
         obj: Union[GenerateReqInput, EmbeddingReqInput],

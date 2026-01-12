@@ -1066,18 +1066,18 @@ class TokenizerMetricsCollector:
         collect_tokens_histogram: bool = False,
     ) -> None:
         # We need to import prometheus_client after setting the env variable `PROMETHEUS_MULTIPROC_DIR`
-        from prometheus_client import Counter, Histogram
+        from prometheus_client import Counter, Gauge, Histogram
 
         self.labels = labels or {}
         self.collect_tokens_histogram = collect_tokens_histogram
 
-        self.prompt_tokens_total = Counter(
+        self.prompt_tokens_total = Gauge(
             name="sglang:prompt_tokens_total",
             documentation="Number of prefill tokens processed.",
             labelnames=labels.keys(),
         )
 
-        self.generation_tokens_total = Counter(
+        self.generation_tokens_total = Gauge(
             name="sglang:generation_tokens_total",
             documentation="Number of generation tokens processed.",
             labelnames=labels.keys(),
@@ -1282,6 +1282,26 @@ class TokenizerMetricsCollector:
             ],
         )
 
+    def clear_metrics(self) -> None:
+        """Reset metrics."""
+        from prometheus_client import Counter, Gauge, Histogram, Summary
+
+        for attr_name, attr in self.__dict__.items():
+            if attr_name == "labels":
+                continue
+            
+            if isinstance(attr, Gauge):
+                try:
+                    attr.labels(**self.labels).set(0)
+                except Exception:
+                    pass
+            
+            elif isinstance(attr, (Counter, Histogram, Summary)):
+                try:
+                    attr.clear()
+                except Exception:
+                    pass
+
     def observe_one_finished_request(
         self,
         labels: Dict[str, str],
@@ -1355,17 +1375,17 @@ class StorageMetricsCollector:
         self,
         labels: Dict[str, str],
     ):
-        from prometheus_client import Counter, Histogram
+        from prometheus_client import Counter, Gauge, Histogram
 
         self.labels = labels
 
-        self.prefetched_tokens_total = Counter(
+        self.prefetched_tokens_total = Gauge(
             name="sglang:prefetched_tokens_total",
             documentation="Number of prefetched prompt tokens.",
             labelnames=labels.keys(),
         )
 
-        self.backuped_tokens_total = Counter(
+        self.backuped_tokens_total = Gauge(
             name="sglang:backuped_tokens_total",
             documentation="Number of backuped tokens.",
             labelnames=labels.keys(),
@@ -1417,6 +1437,26 @@ class StorageMetricsCollector:
             buckets=bucket_bandwidth,
         )
 
+    def clear_metrics(self) -> None:
+        """Reset metrics."""
+        from prometheus_client import Counter, Gauge, Histogram, Summary
+
+        for attr_name, attr in self.__dict__.items():
+            if attr_name == "labels":
+                continue
+            
+            if isinstance(attr, Gauge):
+                try:
+                    attr.labels(**self.labels).set(0)
+                except Exception:
+                    pass
+            
+            elif isinstance(attr, (Counter, Histogram, Summary)):
+                try:
+                    attr.clear()
+                except Exception:
+                    pass
+
     def log_prefetched_tokens(self, prefetched_tokens: int):
         if prefetched_tokens > 0:
             self.prefetched_tokens_total.labels(**self.labels).inc(prefetched_tokens)
@@ -1463,7 +1503,7 @@ class RadixCacheMetricsCollector:
         labels: Dict[str, str],
     ) -> None:
         # We need to import prometheus_client after setting the env variable `PROMETHEUS_MULTIPROC_DIR`
-        from prometheus_client import Counter, Histogram
+        from prometheus_client import Counter, Gauge, Histogram
 
         self.labels = labels
 
@@ -1522,7 +1562,7 @@ class RadixCacheMetricsCollector:
             buckets=bucket_eviction_duration,
         )
 
-        self.eviction_num_tokens = Counter(
+        self.eviction_num_tokens = Gauge(
             name="sglang:evicted_tokens_total",
             documentation="The number of tokens evicted from GPU to CPU.",
             labelnames=labels.keys(),
@@ -1535,11 +1575,31 @@ class RadixCacheMetricsCollector:
             buckets=bucket_load_back_duration,
         )
 
-        self.load_back_num_tokens = Counter(
+        self.load_back_num_tokens = Gauge(
             name="sglang:load_back_tokens_total",
             documentation="The number of tokens loaded from CPU to GPU.",
             labelnames=labels.keys(),
         )
+
+    def clear_metrics(self) -> None:
+        """Reset metrics."""
+        from prometheus_client import Counter, Gauge, Histogram, Summary
+
+        for attr_name, attr in self.__dict__.items():
+            if attr_name == "labels":
+                continue
+            
+            if isinstance(attr, Gauge):
+                try:
+                    attr.labels(**self.labels).set(0)
+                except Exception:
+                    pass
+            
+            elif isinstance(attr, (Counter, Histogram, Summary)):
+                try:
+                    attr.clear()
+                except Exception:
+                    pass
 
     def increment_eviction_num_tokens(self, num_tokens: int) -> None:
         self.eviction_num_tokens.labels(**self.labels).inc(num_tokens)

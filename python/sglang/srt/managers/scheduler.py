@@ -2364,6 +2364,18 @@ class Scheduler(
             self.grammar_manager.clear()
             self.reset_metrics()
 
+            if self.enable_metrics and hasattr(self, "metrics_collector") and self.metrics_collector:
+                if hasattr(self.metrics_collector, "clear_metrics"):
+                    self.metrics_collector.clear_metrics()
+
+            if hasattr(self.tree_cache, "metrics_collector") and self.tree_cache.metrics_collector:
+                if hasattr(self.tree_cache.metrics_collector, "clear_metrics"):
+                    self.tree_cache.metrics_collector.clear_metrics()
+
+            if hasattr(self.tree_cache, "enable_storage_metrics") and self.tree_cache.enable_storage_metrics:
+                if hasattr(self.tree_cache, "storage_metrics_collector"):
+                    self.tree_cache.storage_metrics_collector.clear_metrics()
+
             if self.draft_worker:
                 self.draft_worker.clear_cache_pool()
 

@@ -440,7 +440,7 @@ async def benchmark(
     # Check the states
     assert inputs_requests_queue.empty()
 
-    # Flush cache11
+    # Flush cache111
     # if "sglang" in backend:
     #     requests.post(base_url + "/flush_cache")
 

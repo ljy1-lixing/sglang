@@ -87,6 +87,11 @@ async def async_request_openai_completions(
             "ignore_eos": not args.disable_ignore_eos,
             **request_func_input.extra_request_body,
         }
+
+        if hasattr(args, "seed_ratio") and args.seed_ratio > 0:
+            if random.random() < args.seed_ratio:
+                payload["seed"] = args.seed
+
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
@@ -798,6 +803,15 @@ if __name__ == "__main__":
         default="sglang",
         help="Must specify a backend, depending on the LLM Inference Engine.",
     )
+
+    parser.add_argument(
+        "--seed-ratio",
+        type=float,
+        default=0.0,
+        help="The ratio of requests that will use the fixed seed. "
+        "1.0 means all requests use the seed, 0.01 means 1%% of requests use the seed.",
+    )
+
     parser.add_argument(
         "--base-url",
         type=str,

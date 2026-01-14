@@ -87,6 +87,7 @@ class MooncakeStoreConfig:
     check_server: bool
     standalone_storage: bool
     client_server_address: str
+    client_http_port: int
 
     @staticmethod
     def from_file() -> "MooncakeStoreConfig":
@@ -137,6 +138,7 @@ class MooncakeStoreConfig:
             client_server_address=config.get(
                 "client_server_address", envs.MOONCAKE_CLIENT.default
             ),
+            client_http_port=config.get("client_http_port", 0),
         )
 
     @staticmethod
@@ -176,6 +178,7 @@ class MooncakeStoreConfig:
             check_server=envs.MOONCAKE_CHECK_SERVER.get(),
             standalone_storage=envs.MOONCAKE_STANDALONE_STORAGE.get(),
             client_server_address=envs.MOONCAKE_CLIENT.get(),
+            client_http_port=int(os.getenv("MOONCAKE_CLIENT_HTTP_PORT", "0")),
         )
 
     @staticmethod
@@ -218,6 +221,7 @@ class MooncakeStoreConfig:
             client_server_address=extra_config.get(
                 "client_server_address", envs.MOONCAKE_CLIENT.default
             ),
+            client_http_port=extra_config.get("client_http_port", 0),
         )
 
 
@@ -261,6 +265,24 @@ class MooncakeStore(HiCacheStorage):
                 # Load from environment variables
                 self.config = MooncakeStoreConfig.load_from_env()
                 logger.info("Mooncake Configuration loaded from env successfully.")
+
+            if self.config.client_http_port > 0:
+                base_port = self.config.client_http_port
+                port_offset = 0
+                if "LOCAL_RANK" in os.environ:
+                    try:
+                        port_offset = int(os.environ["LOCAL_RANK"])
+                        logger.info(f"Using LOCAL_RANK {port_offset} for port offset.")
+                    except ValueError:
+                        pass
+                elif storage_config is not None:
+                    port_offset = (storage_config.pp_rank * storage_config.tp_size) + storage_config.tp_rank
+                    logger.info(f"Calculated port offset from config: {port_offset} (TP={storage_config.tp_rank}, PP={storage_config.pp_rank})")
+
+                final_port = base_port + port_offset
+                
+                logger.info(f"Enabling Mooncake Client HTTP Metrics on port {final_port} (Base: {base_port}, Offset: {port_offset})")
+                os.environ["MC_CLIENT_HTTP_PORT"] = str(final_port)
 
             tp_scale_factor = 1 if storage_config is None else storage_config.tp_size
 

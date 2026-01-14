@@ -4,6 +4,7 @@ import logging
 import os
 import time
 import uuid
+import threading
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
@@ -22,6 +23,9 @@ DEFAULT_LOCAL_BUFFER_SIZE = 16 * 1024 * 1024  # 16 MB
 SETUP_TIMEOUT = 600  # 10min
 
 logger = logging.getLogger(__name__)
+
+_assigned_ports = set()
+_port_lock = threading.Lock()
 
 
 class MooncakeHostTensorAllocator(HostTensorAllocator):
@@ -269,22 +273,48 @@ class MooncakeStore(HiCacheStorage):
             if self.config.client_http_port > 0:
                 base_port = self.config.client_http_port
                 port_offset = 0
+                offset_source = "default"
+
+                #计算基础偏移量
                 if torch.distributed.is_initialized():
                     port_offset = torch.distributed.get_rank()
                     offset_source = "torch.distributed.get_rank()"
-                
                 elif "LOCAL_RANK" in os.environ:
                     try:
                         port_offset = int(os.environ["LOCAL_RANK"])
                         offset_source = "env LOCAL_RANK"
                     except ValueError:
                         pass
+                elif storage_config is not None:
+                    # Fallback for non-DP scenarios
+                    port_offset = (storage_config.pp_rank * storage_config.tp_size) + storage_config.tp_rank
+                    offset_source = "storage_config"
 
                 final_port = base_port + port_offset
+
+                #进程内冲突检测与避让
+                # 如果同一个进程初始化了两个 Client，第二次初始化时 final_port 会和第一次一样
+                tp_size = 1
+                if storage_config is not None:
+                    tp_size = storage_config.tp_size
                 
+                # 使用锁保护全局集合
+                global _assigned_ports
+                with _port_lock:
+                    while final_port in _assigned_ports:
+                        logger.warning(
+                            f"Port {final_port} already assigned in this process. "
+                            f"Shifting by tp_size ({tp_size}) to avoid conflict."
+                        )
+                        final_port += tp_size
+                        offset_source += f" + process_shift({tp_size})"
+                    
+                    # 记录该端口已被使用
+                    _assigned_ports.add(final_port)
+
                 logger.info(
                     f"Enabling Mooncake Client HTTP Metrics on port {final_port} "
-                    f"(Base: {base_port}, Offset: {port_offset}, Source: {offset_source})"
+                    f"(Base: {base_port}, Initial Offset: {port_offset}, Final Source: {offset_source})"
                 )
                 
                 os.environ["MC_CLIENT_HTTP_PORT"] = str(final_port)

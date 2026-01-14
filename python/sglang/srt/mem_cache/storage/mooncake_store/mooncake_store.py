@@ -269,24 +269,19 @@ class MooncakeStore(HiCacheStorage):
             if self.config.client_http_port > 0:
                 base_port = self.config.client_http_port
                 port_offset = 0
-                if torch.distributed.is_initialized():
-                    port_offset = torch.distributed.get_rank()
-                    offset_source = "torch.distributed.get_rank()"
-                
-                elif "LOCAL_RANK" in os.environ:
+                if "LOCAL_RANK" in os.environ:
                     try:
                         port_offset = int(os.environ["LOCAL_RANK"])
-                        offset_source = "env LOCAL_RANK"
+                        logger.info(f"Using LOCAL_RANK {port_offset} for port offset.")
                     except ValueError:
                         pass
+                elif storage_config is not None:
+                    port_offset = (storage_config.pp_rank * storage_config.tp_size) + storage_config.tp_rank
+                    logger.info(f"Calculated port offset from config: {port_offset} (TP={storage_config.tp_rank}, PP={storage_config.pp_rank})")
 
                 final_port = base_port + port_offset
                 
-                logger.info(
-                    f"Enabling Mooncake Client HTTP Metrics on port {final_port} "
-                    f"(Base: {base_port}, Offset: {port_offset}, Source: {offset_source})"
-                )
-                
+                logger.info(f"Enabling Mooncake Client HTTP Metrics on port {final_port} (Base: {base_port}, Offset: {port_offset})")
                 os.environ["MC_CLIENT_HTTP_PORT"] = str(final_port)
 
             tp_scale_factor = 1 if storage_config is None else storage_config.tp_size
